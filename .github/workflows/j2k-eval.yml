@@ -1,0 +1,71 @@
+name: j2k-eval
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
+      - name: Clone Kotlin baseline
+        run: |
+          mkdir -p build/baselines
+          git clone --depth 1 https://github.com/spring-petclinic/spring-petclinic-kotlin.git build/baselines/spring-petclinic-kotlin
+
+      - name: Build J2K runner and evaluator
+        run: |
+          gradle -p tools :intellij-j2k-runner:buildPlugin :evaluator:installDist
+
+      - name: Run J2K conversion on real project
+        run: |
+          xvfb-run gradle -p tools :intellij-j2k-runner:runIde \
+            --args="j2k-batch --project-root $GITHUB_WORKSPACE --source-root $GITHUB_WORKSPACE/src/main/java --output-root $GITHUB_WORKSPACE/build/j2k/generated"
+
+      - name: Run J2K conversion on edge-case dataset
+        run: |
+          xvfb-run gradle -p tools :intellij-j2k-runner:runIde \
+            --args="j2k-batch --project-root $GITHUB_WORKSPACE --source-root $GITHUB_WORKSPACE/tools/edgecases/input --output-root $GITHUB_WORKSPACE/build/j2k/edgecases"
+
+      - name: Evaluate conversion quality
+        run: |
+          gradle -p tools :evaluator:run --args=" \
+            --java-root $GITHUB_WORKSPACE/src/main/java \
+            --generated-kotlin-root $GITHUB_WORKSPACE/build/j2k/generated \
+            --baseline-kotlin-root $GITHUB_WORKSPACE/build/baselines/spring-petclinic-kotlin/src/main/kotlin \
+            --edge-case-root $GITHUB_WORKSPACE/tools/edgecases/input \
+            --edge-case-generated-root $GITHUB_WORKSPACE/build/j2k/edgecases \
+            --output-dir $GITHUB_WORKSPACE/build/j2k/report \
+          "
+
+      - name: Upload J2K reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: j2k-report
+          path: |
+            build/j2k/report
+            build/j2k/generated
+            build/j2k/edgecases
+

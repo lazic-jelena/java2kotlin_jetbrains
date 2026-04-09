@@ -1,0 +1,14 @@
+<idea-plugin>
+    <id>dev.j2k.runner</id>
+    <name>J2K Batch Runner</name>
+    <vendor email="noreply@example.com">J2K Assignment</vendor>
+    <description>
+        Headless ApplicationStarter used to batch-run static Java-to-Kotlin conversion in CI.
+    </description>
+
+    <depends>org.jetbrains.kotlin</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <appStarter implementation="dev.j2k.runner.J2kBatchStarter"/>
+    </extensions>
+</idea-plugin>
